@@ -13,6 +13,11 @@
       var user_id = -1;
       var isAuthenticated = false;
 
+      var monthNames = [ "January", "February", "March", "April", "May", "June",
+          "July", "August", "September", "October", "November", "December" ];
+
+      var dayNames = [ "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" ];
+
       $(document).on('mobileinit', function() {
         jqueryMobileReady.resolve();
       });
@@ -42,21 +47,29 @@
           var username = $("#newUserUsername").val();
           var password = $("#newUserPassword").val();
           var confirmPassword = $("#confirmPassword").val();
-          alert("user: " + username + "\npassword: " + password + "\nconfirm: " + confirmPassword);
-          if (!(username.length === 0) && !(password.length === 0)) {
-            if (password === confirmPassword) {
-              var db = window.openDatabase("Database", "1.0", "Cordova Demo", 200000);
-              db.transaction(function (tx) {
-                  tx.executeSql('INSERT INTO USER (user_username, user_password) VALUES ("' + username + '", "' + password + '")');
-                }, errorCB, function () {
-                  $("#status").text("Successfually added user " + username + "!");
-                  $.mobile.changePage("#login");
-                });
+          if (!(username.length === 0)) {
+            if (!(password.length === 0)) {
+              if (password === confirmPassword) {
+                var db = window.openDatabase("Database", "1.0", "Cordova Demo", 200000);
+                db.transaction(function (tx) {
+                    tx.executeSql('INSERT INTO USER (user_username, user_password) VALUES ("' + username.replace(/\"/g, "\"\"") + '", "' + password.replace(/\"/g, "\"\"") + '")');
+                  }, errorCB, function () {
+                    $("#loginStatus").text("Added user \"" + username + "\"");
+                    $.mobile.changePage("#login");
+                    $("#loginStatus").css('color', 'green');
+                    $("#addUserStatus").text("");
+                  });
+              } else {
+                $("#addUserStatus").text("The 'Password' and 'Confirm Password' fields do not match");
+                $("#addUserStatus").css('color', 'red');
+              }
             } else {
-              alert("the password and confirm password do not match!");
+              $("#addUserStatus").text("The 'Password' field is required");
+              $("#addUserStatus").css('color', 'red');
             }
           } else {
-            alert("appears either username or password is empty!");
+            $("#addUserStatus").text("The 'Username' field is required");
+            $("#addUserStatus").css('color', 'red');
           }
         });
 
@@ -64,18 +77,26 @@
         $("#addPostSubmit").click(function () {
           var title = $("#newPostTitle").val();
           var body = $("#newPostBody").val();
-          alert("title: " + title + "\nbody: " + body);
-          if (!(title.length === 0) && !(body.length === 0)) {
-            var db = window.openDatabase("Database", "1.0", "Cordova Demo", 200000);
-            db.transaction(function (tx) {
-                alert("title: " + title + "\nbody: " + body);
-                tx.executeSql('INSERT INTO POST (user_id, post_title, post_body, post_date) VALUES (' + user_id + ', "' + title + '", "' + body + '", ' + ((new Date()).getTime()) + ')');
-              }, errorCB, function () {
-                $("#postStatus").text("Successfually added post " + title + "!");
-                $.mobile.changePage("#viewPosts");
-              });
+          if (!(title.length === 0)) {
+            if (!(body.length === 0)) {
+              var db = window.openDatabase("Database", "1.0", "Cordova Demo", 200000);
+              db.transaction(function (tx) {
+                  tx.executeSql('INSERT INTO POST (user_id, post_title, post_body, post_date) VALUES (' + user_id + ', "' + title.replace(/\"/g, "\"\"") + '", "' + body.replace(/\"/g, "\"\"") + '", ' + ((new Date()).getTime()) + ')');
+                }, errorCB, function () {
+                  $("#postStatus").text("Added New Post \"" + title + "\"");
+                  $("#postStatus").css('color', 'green');
+
+                  // update user posts <ul>
+                  db.transaction(getPosts, errorCB);
+                  $.mobile.changePage("#viewPosts");
+                });
+            } else {
+              $("#addPostStatus").text("The 'Body' field is required");
+              $("#addPostStatus").css('color', 'red');
+            }
           } else {
-            alert("appears either title or body is empty!");
+            $("#addPostStatus").text("The 'Title' field is required");
+            $("#addPostStatus").css('color', 'red');
           }
         });
 
@@ -84,13 +105,23 @@
           user_id = -1;
           isAuthenticated = false;
           $.mobile.changePage("#login");
-          });
+          $("#postStatus").text("");
+        });
+
+        // clear forms when canceling an add
+        $(".cancelForm").click(function () {
+          $(this).closest('form')[0].reset();
+          $("#postStatus").text("");
+        });
       }
 
       function initializeDB(tx) {
         //tx.executeSql('DROP TABLE IF EXISTS USER');
         //tx.executeSql('DROP TABLE IF EXISTS POST');
-        tx.executeSql('CREATE TABLE IF NOT EXISTS USER (user_id INTEGER PRIMARY KEY AUTOINCREMENT, user_username VARCHAR(50) UNIQUE NOT NULL, user_password VARCHAR(50) NOT NULL)');
+        tx.executeSql('CREATE TABLE IF NOT EXISTS USER (' +
+              'user_id INTEGER PRIMARY KEY AUTOINCREMENT, ' +
+              'user_username VARCHAR(50) UNIQUE NOT NULL, ' +
+              'user_password VARCHAR(50) NOT NULL)');
         tx.executeSql('CREATE TABLE IF NOT EXISTS POST (' +
               'post_id INTEGER PRIMARY KEY AUTOINCREMENT, ' +
               'user_id INTEGER NOT NULL, ' +
@@ -106,13 +137,15 @@
       }
 
       function successCB() {
-        alert("Success!");
+        // do nothing but debug
+        //alert("Success!");
       }
 
-      function queryDB(tx) {
+      function getPosts(tx) {
         tx.executeSql('SELECT * ' +
                       'FROM POST ' +
-                      'WHERE user_id = ' + user_id, [], querySuccess, errorCB);
+                      'WHERE user_id = ' + user_id + ' ' +
+                      'ORDER BY post_id DESC', [], querySuccess, errorCB);
       }
 
       function querySuccess(tx, results) {
@@ -121,15 +154,27 @@
         for (var i = 0; i < length; i++) {
           var post_date = new Date();
           post_date.setTime(results.rows.item(i).post_date);
-          var li = '<li><a href="#" id="' + results.rows.item(i).post_id + '" class="postItem">' + results.rows.item(i).post_title + ' ' + post_date.toDateString() + '</a></li>';
+          var li = '<li><a href="#" id="' + results.rows.item(i).post_id +
+            '" class="postItem">' + results.rows.item(i).post_title + ' ' +
+            post_date.toDateString() + '</a><span class="dividerString" style="display: none;">' +
+            dayNames[post_date.getDay()] + ' ' + monthNames[post_date.getMonth()] + 
+            ' ' + post_date.getDate() + ', ' + post_date.getFullYear() + '</span></li>';
           $("#userPosts").append(li); 
         }
+
+        $("#userPosts").listview({
+          autodividers: true,
+          autodividersSelector: function (li) {
+            var out = $(li).find('.dividerString').text();
+            return out;
+          }
+        });
+
         $("#userPosts").listview('refresh');
 
         // register click handler for posts
         $(".postItem").click(function () {
           var post_id = $(this).attr("id");
-          alert(post_id);
 
           // populate view post page
           var db = window.openDatabase("Database", "1.0", "Cordova Demo", 200000);
@@ -140,9 +185,13 @@
                 var length = results.rows.length;
                 if (length > 0) {
                   $("#viewPostTitle").text(results.rows.item(0).post_title);
+                  var post_date = new Date();
+                  post_date.setTime(results.rows.item(0).post_date);
+                  $("#viewPostDate").text(post_date.toDateString() + " " + post_date.toTimeString());
                   $("#viewPostBody").text(results.rows.item(0).post_body);
                 }
                 $.mobile.changePage("#viewPost");
+                $("#postStatus").text("");
               }, errorCB);
             }, errorCB);
         });
@@ -151,7 +200,7 @@
       $(document).delegate("#login", "pageinit", function () {
         $("#loginForm").submit(function () {
 
-          $("#status").text("");
+          $("#loginStatus").text("");
 
           $.mobile.loading('show', {
             text: 'Authenticating...',
@@ -175,19 +224,23 @@
         db.transaction(function (tx) {
             tx.executeSql('SELECT * ' +
                           'FROM USER ' +
-                          'WHERE user_username = "' + username + '" ' +
-                            'AND user_password = "' + password + '"'
+                          'WHERE user_username = "' + username.replace(/\"/g, "\"\"") + '" ' +
+                            'AND user_password = "' + password.replace(/\"/g, "\"\"") + '"'
                           , [], function (tx, results) {
             if (results.rows.length > 0) {
               isAuthenticated = true;
               user_id = results.rows.item(0).user_id;
-              alert("user_id: " + user_id);
             }
 
             //show message that they couldn't login
             if (!isAuthenticated) {
-              $("#status").text("Bad username or password");
+              $("#loginStatus").text("Invalid username or password");
+              $("#loginStatus").css('color', 'red');
             } else {
+              // populate user posts <ul>
+              var db = window.openDatabase("Database", "1.0", "Cordova Demo", 200000);
+              db.transaction(getPosts, errorCB);
+
               $.mobile.changePage("#viewPosts");
             }
 
@@ -196,17 +249,26 @@
           }, errorCB);
       }
 
-      $(document).delegate("#welcome,#settings", "pagebeforeshow", function() {
+      $(document).delegate("#viewPosts, #viewPost", "pagebeforeshow", function() {
         if (!isAuthenticated) {
-          $.mobile.changePage("#viewPosts");
+          $.mobile.changePage("#login");
         }
       });
 
-      $(document).delegate("#viewPosts", "pagebeforeshow", function () {
-        alert("pagebeforeshow woot");
-        // populate user posts <ul>
-        var db = window.openDatabase("Database", "1.0", "Cordova Demo", 200000);
-        db.transaction(queryDB, errorCB);
+      $(document).delegate("#newPost", "pagebeforeshow", function () {
+        $("#newPostTitle").val("");
+        $("#newPostBody").val("");
+      });
+
+      $(document).delegate("#newUser", "pagebeforeshow", function () {
+        $("#newUserUsername").val("");
+        $("#newUserPassword").val("");
+        $("#confirmPassword").val("");
+      });
+
+      $(document).delegate("#login", "pagebeforeshow", function () {
+        $("#username").val("");
+        $("#password").val("");
       });
     </script>
     <style>
@@ -225,10 +287,8 @@
           <input type="password" name="password" id="password" />
           <input type="submit" value="login" data-theme="b"/>
         </form>
-        <div id="status">
-        </div>
-        <div id="results">
-        </div>
+        <h5 id="loginStatus">
+        </h5>
       </div>
     </div>
 
@@ -242,18 +302,14 @@
           <label for="confirmPassword">Confirm Password:</label>
           <input type="password" name="confirmPassword" id="confirmPassword" />
 
-          <div class="ui-grid-a">
-            <div class="ui-block-a">
-              <a href="#login" data-role="button">Cancel</a>
-            </div>
-            <div class="ui-block-b">
-              <input type="button" value="Add" id="addUserSubmit" data-theme="b" data-icon="plus" />
-            </div>
+          <div class="ui-grid-solo" data-role="controlgroup" data-type="horizontal" style="text-align: center;">
+            <a href="#login" data-role="button" class="cancelForm">Cancel</a>
+            <input type="button" value="Add" id="addUserSubmit" data-theme="b" data-icon="plus" />
           </div>
 
         </form>
-        <div id="status">
-        </div>
+        <h5 id="addUserStatus">
+        </h5>
       </div>
     </div>
 
@@ -262,11 +318,11 @@
         <h1>Posts</h1>
         <a href="#" class="ui-btn-right log_out">Log Out</a>
       </div>
-      <div id="postStatus">
-      </div>
       <a href="#newPost" data-role="button" data-icon="plus" data-theme="e">Add New Post</a>
+      <h5 id="postStatus">
+      </h5>
       <div data-role="content">
-        <ul id="userPosts" data-role="listview">
+        <ul id="userPosts" data-role="listview" data-autodividers="true">
         </ul>
       </div>
     </div>
@@ -278,14 +334,16 @@
       </div>
       <div data-role="content">
         <form id="newPostForm">
+
           <label for="title">Title:</label>
           <input type="text" name="title" id="newPostTitle" />
 
           <label for="body">Body:</label>
           <textarea name="body" id="newPostBody"></textarea>
-          <div class="ui-grid-a">
+
+          <div class="ui-grid-a controlgroup">
             <div class="ui-block-a">
-              <a href="#viewPosts" data-role="button">Cancel</a>
+              <a href="#viewPosts" data-role="button" class="cancelForm">Cancel</a>
             </div>
             <div class="ui-block-b">
               <input type="button" value="Submit" id="addPostSubmit" data-theme="b" data-icon="plus" />
@@ -293,6 +351,8 @@
           </div>
 
         </form>
+        <h5 id="addPostStatus">
+        </h5>
       </div>
     </div>
 
@@ -303,6 +363,7 @@
       </div>
       <div data-role="content">
         <h1 id="viewPostTitle"></h1>
+        <h4 id="viewPostDate"></h4>
         <p id="viewPostBody"></p>
       </div>
     </div>

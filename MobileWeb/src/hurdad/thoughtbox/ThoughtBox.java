@@ -17,13 +17,13 @@
        under the License.
  */
 
-package hurdad.mobileweb;
+package hurdad.thoughtbox;
 
 import org.apache.cordova.DroidGap;
 
 import android.os.Bundle;
 
-public class RTTTLer extends DroidGap {
+public class ThoughtBox extends DroidGap {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
