@@ -273,13 +273,16 @@
     </script>
     <style>
       .ui-dialog .ui-header a.ui-btn { display:none; }
+      .ui-icon-myapp-adduser {
+        background-image: url("white-add-user-icon.png");
+      }
     </style>
   </head>
   <body>
 
     <div data-role="dialog" id="login" data-title="log In">
       <div data-role="content">
-        <a href="#newUser" data-role="button" data-icon="plus" data-theme="e">Add New User</a>
+        <a href="#newUser" data-role="button" data-icon="myapp-adduser" data-theme="e">Add New User</a>
         <form id="loginForm">
           <label for="username">Username:</label>
           <input type="text" name="username" id="username" />
@@ -304,7 +307,7 @@
 
           <div class="ui-grid-solo" data-role="controlgroup" data-type="horizontal" style="text-align: center;">
             <a href="#login" data-role="button" class="cancelForm">Cancel</a>
-            <input type="button" value="Add" id="addUserSubmit" data-theme="b" data-icon="plus" />
+            <input type="button" value="Add" id="addUserSubmit" data-theme="b" data-icon="myapp-adduser" />
           </div>
 
         </form>
